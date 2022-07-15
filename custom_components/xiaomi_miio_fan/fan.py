@@ -8,14 +8,12 @@ import asyncio
 import logging
 from enum import Enum
 from functools import partial
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.fan import (
-    ATTR_SPEED,
     PLATFORM_SCHEMA,
-    SPEED_OFF,
     SUPPORT_DIRECTION,
     SUPPORT_OSCILLATE,
     SUPPORT_PRESET_MODE,
@@ -34,26 +32,25 @@ from homeassistant.util.percentage import (
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
 )
-from miio import (  # pylint: disable=import-error
+from miio import (
     Device,
     DeviceException,
-    Fan,
+    Fan,  # pylint: disable=import-error
     Fan1C,
     FanLeshow,
+    FanMiot,
     FanP5,
-    FanP9,
-    FanP10,
-    FanP11,
 )
-from miio.miot_device import MiotDevice, DeviceStatus
-from miio.fan import (
-    LedBrightness as FanLedBrightness,  # pylint: disable=import-error, import-error
-)
-from miio.fan import MoveDirection as FanMoveDirection
-from miio.fan_leshow import (
-    OperationMode as FanLeshowOperationMode,  # pylint: disable=import-error, import-error
-)
-from miio.fan_miot import OperationModeMiot as FanOperationModeMiot
+from miio.fan_common import FanException
+from miio.fan_common import (
+    LedBrightness as FanLedBrightness,
+)  # pylint: disable=import-error, import-error
+from miio.fan_common import MoveDirection as FanMoveDirection
+from miio.fan_common import OperationMode as FanOperationMode
+from miio.integrations.fan.leshow.fan_leshow import (
+    OperationMode as FanLeshowOperationMode,
+)  # pylint: disable=import-error, import-error
+from miio.miot_device import DeviceStatus, MiotDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +114,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         
     }
 )
+
+SPEED_OFF = "off"
 
 ATTR_MODEL = "model"
 ATTR_BRIGHTNESS = "brightness"
@@ -338,11 +337,7 @@ SERVICE_SCHEMA_OSCILLATION_ANGLE = AIRPURIFIER_SERVICE_SCHEMA.extend(
 )
 
 SERVICE_SCHEMA_DELAY_OFF = AIRPURIFIER_SERVICE_SCHEMA.extend(
-    {
-        vol.Required(ATTR_DELAY_OFF_COUNTDOWN): vol.All(
-            vol.Coerce(int), vol.Clamp(min=0, max=480)
-        )
-    }
+    {vol.Required(ATTR_DELAY_OFF_COUNTDOWN): cv.positive_int}
 )
 
 SERVICE_TO_METHOD = {
@@ -420,17 +415,17 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             name, fan, model, unique_id, retries, preset_modes_override
         )
     elif model == MODEL_FAN_P9:
-        fan = FanP9(host, token, model=model)
+        fan = FanMiot(host, token, model=model)
         device = XiaomiFanMiot(
             name, fan, model, unique_id, retries, preset_modes_override
         )
     elif model in [MODEL_FAN_P10, MODEL_FAN_P18]:
-        fan = FanP10(host, token, model=MODEL_FAN_P10)
+        fan = FanMiot(host, token, model=MODEL_FAN_P10)
         device = XiaomiFanMiot(
             name, fan, model, unique_id, retries, preset_modes_override
         )
     elif model in [MODEL_FAN_P11, MODEL_FAN_P15]:
-        fan = FanP11(host, token, model=MODEL_FAN_P11)
+        fan = FanMiot(host, token, model=MODEL_FAN_P11)
         device = XiaomiFanMiot(
             name, fan, model, unique_id, retries, preset_modes_override
         )
@@ -541,8 +536,8 @@ class XiaomiGenericDevice(FanEntity):
         return self._available
 
     @property
-    def device_state_attributes(self):
-        """Return the state attributes of the device."""
+    def extra_state_attributes(self):
+        """Return the extra state attributes of the device."""
         return self._state_attrs
 
     @property
@@ -905,7 +900,7 @@ class XiaomiFanP5(XiaomiFan):
             self._available = True
             self._percentage = state.speed
             self._oscillate = state.oscillate
-            self._natural_mode = state.mode == FanOperationModeMiot.Nature
+            self._natural_mode = state.mode == FanOperationMode.Nature
             self._state = state.is_on
 
             for preset_mode, range in FAN_PRESET_MODES.items():
@@ -976,7 +971,7 @@ class XiaomiFanP5(XiaomiFan):
         await self._try_command(
             "Turning on natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Nature,
+            FanOperationMode.Nature,
         )
 
     async def async_set_natural_mode_off(self):
@@ -987,7 +982,7 @@ class XiaomiFanP5(XiaomiFan):
         await self._try_command(
             "Turning on natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Normal,
+            FanOperationMode.Normal,
         )
 
     async def async_set_delay_off(self, delay_off_countdown: int) -> None:
@@ -1002,7 +997,9 @@ class XiaomiFanP5(XiaomiFan):
 
 class XiaomiFanMiot(XiaomiFanP5):
     """Representation of a Xiaomi Pedestal Fan P9, P10, P11, P18."""
+
     pass
+
 
 class XiaomiFanLeshow(XiaomiGenericDevice):
     """Representation of a Xiaomi Fan Leshow SS4."""
@@ -1305,7 +1302,7 @@ class XiaomiFan1C(XiaomiFan):
         await self._try_command(
             "Setting fan natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Nature,
+            FanOperationMode.Nature,
         )
 
     async def async_set_natural_mode_off(self):
@@ -1316,7 +1313,7 @@ class XiaomiFan1C(XiaomiFan):
         await self._try_command(
             "Setting fan natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Normal,
+            FanOperationMode.Normal,
         )
 
 
@@ -1332,7 +1329,6 @@ class XiaomiFanZA5(XiaomiFan):
         self._preset_modes = list(FAN_PRESET_MODES_ZA5)
         if preset_modes_override is not None:
             self._preset_modes = preset_modes_override
-        
 
         self._state_attrs.update(
             {attribute: None for attribute in self._available_attributes}
@@ -1359,7 +1355,7 @@ class XiaomiFanZA5(XiaomiFan):
             self._available = True
             self._percentage = state.fan_speed
             self._oscillate = state.swing_mode
-            self._natural_mode = state.mode == FanOperationModeMiot.Nature
+            self._natural_mode = state.mode == FanOperationMode.Nature
             self._state = state.power
 
             for preset_mode, value in FAN_PRESET_MODES_ZA5.items():
@@ -1463,7 +1459,7 @@ class XiaomiFanZA5(XiaomiFan):
         await self._try_command(
             "Setting delay off miio device failed.",
             self._device.delay_off,
-            delay_off_countdown,
+            delay_off_countdown * 60,
         )
 
     async def async_set_natural_mode_on(self):
@@ -1474,7 +1470,7 @@ class XiaomiFanZA5(XiaomiFan):
         await self._try_command(
             "Setting fan natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Nature,
+            FanOperationMode.Nature,
         )
 
     async def async_set_natural_mode_off(self):
@@ -1485,7 +1481,7 @@ class XiaomiFanZA5(XiaomiFan):
         await self._try_command(
             "Setting fan natural mode of the miio device failed.",
             self._device.set_mode,
-            FanOperationModeMiot.Normal,
+            FanOperationMode.Normal,
         )
 
     async def async_set_led_brightness(self, brightness: int = 2):
@@ -1675,8 +1671,7 @@ class FanZA5(MiotDevice):
         lazy_discover: bool = True,
         model: str = MODEL_FAN_ZA5,
     ) -> None:
-        super().__init__(ip, token, start_id, debug, lazy_discover)
-        self.model = model
+        super().__init__(ip, token, start_id, debug, lazy_discover, model=model)
 
     def status(self):
         """Retrieve properties."""
@@ -1741,7 +1736,7 @@ class FanZA5(MiotDevice):
 
         return self.set_property("light", light)
 
-    def set_mode(self, mode: FanOperationModeMiot):
+    def set_mode(self, mode: FanOperationMode):
         """Set mode."""
         return self.set_property("mode", OperationModeFanZA5[mode.name].value)
 

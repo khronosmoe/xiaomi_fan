@@ -8,7 +8,7 @@
 
 This is a custom component for home assistant to integrate the Xiaomi Mi Smart Fan.
 
-Please follow the instructions on [Retrieving the Access Token](https://www.home-assistant.io/integrations/xiaomi_miio#retrieving-the-access-token) to get the API token to use in the configuration.yaml file.
+Please follow the instructions on [Retrieving the Access Token](https://www.home-assistant.io/integrations/xiaomi_miio/#xiaomi-cloud-tokens-extractor) to get the API token to use in the configuration.yaml file.
 
 Credits: Thanks to [Rytilahti](https://github.com/rytilahti/python-miio) for all the work.
 
@@ -21,7 +21,7 @@ Credits: Thanks to [Rytilahti](https://github.com/rytilahti/python-miio) for all
 | Pedestal Fan Fan SA1    | zhimi.fan.sa1          | | |
 | Pedestal Fan Fan ZA1    | zhimi.fan.za1          | | |
 | Pedestal Fan Fan ZA3    | zhimi.fan.za3          | | |
-| Pedestal Fan Fan ZA4    | zhimi.fan.za4          | | |
+| Pedestal Fan Fan ZA4    | zhimi.fan.za4          | ZLBPLDS04ZM | |
 | Smartmi Standing Fan 3  | zhimi.fan.za5          | | |
 | Pedestal Fan Fan 1C     | dmaker.fan.1c          | | |
 | Pedestal Fan Fan P5     | dmaker.fan.p5          | | |
